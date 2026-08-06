@@ -65,7 +65,6 @@ class JakaReachEnv(gym.Env):
 
         # End-effector site id.
         self._ee_site_id = mujoco.mj_name2id(self._model, mujoco.mjtObj.mjOBJ_SITE, "end_effector")
-        self._box_top_site_id = mujoco.mj_name2id(self._model, mujoco.mjtObj.mjOBJ_SITE, "box_top")
 
         # Box qpos indices (freejoint, 7 dofs: pos + quat).
         box_joint_id = mujoco.mj_name2id(self._model, mujoco.mjtObj.mjOBJ_JOINT, "box_joint")
