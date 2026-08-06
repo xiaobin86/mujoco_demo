@@ -1,0 +1,11 @@
+<mujocoinclude>
+  <asset>
+    <texture type="2d" name="groundplane" builtin="checker" mark="edge" rgb1="0.2 0.3 0.4" rgb2="0.1 0.2 0.3" markrgb="0.8 0.8 0.8" width="300" height="300"/>
+    <material name="groundplane" texture="groundplane" texuniform="true" texrepeat="5 5" reflectance="0.2"/>
+  </asset>
+  <worldbody>
+    <geom name="floor" type="plane" size="10 10 0.1" material="groundplane" condim="3" friction="1.0 0.005 0.0001"/>
+    <light directional="true" diffuse=".8 .8 .8" specular="0.1 0.1 0.1" pos="0 0 5" dir="0 0 -1"/>
+    <light directional="true" diffuse=".6 .6 .6" specular="0.2 0.2 0.2" pos="5 5 5" dir="-1 -1 -1"/>
+  </worldbody>
+</mujocoinclude>
