@@ -1,4 +1,4 @@
-"""Launch an interactive MuJoCo 3D viewer and watch PandaReachEnv run.
+"""Launch an interactive MuJoCo 3D viewer and watch PandaPickEnv run.
 
 --- How to run ---
 
@@ -15,7 +15,7 @@ Controls inside the MuJoCo viewer window:
 - Esc / close window : stop the demo
 
 The demo runs a random policy, so the arm will jitter around but you can see the
-current end-effector to box-top distance printed in the terminal after each episode.
+current cube-to-tray distance printed in the terminal after each episode.
 """
 
 from __future__ import annotations
@@ -26,10 +26,10 @@ from typing import Any
 
 import mujoco.viewer
 
-from jaka_zu35_mujoco_rl import PandaReachEnv
+from jaka_zu35_mujoco_rl import PandaPickEnv
 
 
-def run_episodes(env: PandaReachEnv, viewer: Any, num_episodes: int, sleep_dt: float) -> None:
+def run_episodes(env: PandaPickEnv, viewer: Any, num_episodes: int, sleep_dt: float) -> None:
     """Step a random policy while the viewer window is open."""
     for episode in range(num_episodes):
         if not viewer.is_running():
@@ -51,12 +51,12 @@ def run_episodes(env: PandaReachEnv, viewer: Any, num_episodes: int, sleep_dt: f
             print(
                 f"Episode {episode + 1}: "
                 f"steps={step}, reward={reward:.4f}, "
-                f"success={terminated}, final_distance={info['distance']:.4f}"
+                f"success={terminated}, cube_to_tray={info['distance_cube_to_tray']:.4f}"
             )
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Interactive MuJoCo viewer for PandaReachEnv")
+    parser = argparse.ArgumentParser(description="Interactive MuJoCo viewer for PandaPickEnv")
     parser.add_argument("--episodes", type=int, default=3, help="Number of episodes to run")
     parser.add_argument("--seed", type=int, default=0, help="Random seed")
     parser.add_argument(
@@ -67,7 +67,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    env = PandaReachEnv(seed=args.seed)
+    env = PandaPickEnv(seed=args.seed)
     env.reset(seed=args.seed)
 
     print("Opening MuJoCo viewer... Close the window to stop.")
