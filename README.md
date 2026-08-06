@@ -1,16 +1,18 @@
-# Franka Panda MuJoCo RL Environment
+# Franka Panda MuJoCo Pick-Place RL Environment
 
-A minimal, runnable **MuJoCo + Gymnasium** reinforcement-learning environment with a Franka Emika Panda 7-axis robotic arm and a single `cola_24` box target.
+A minimal, runnable **MuJoCo + Gymnasium** reinforcement-learning environment with a Franka Emika Panda 7-axis robotic arm and Robotiq 2F85 gripper. The task is **pick-and-place**: grasp a small red cube from a random table position and place it in a fixed target tray.
 
 ## Features
 
-- Franka Emika Panda 7-axis arm MuJoCo model with Robotiq 2F85 gripper
-- Single `cola_24` box scene (0.4 × 0.27 × 0.24 m)
+- Franka Emika Panda 7-axis arm + Robotiq 2F85 gripper MuJoCo model
+- 5 cm red cube on a table with a fixed blue target tray
+- Simulated overhead RGB camera + color-based cube detector (YOLO placeholder)
 - Gymnasium-compatible `Env` interface
-- 20-dimensional observation + 7-dimensional normalized joint-position control
+- 32-dimensional observation + 8-dimensional normalized joint-position + gripper control
 - Motor actuators with internal PD position tracking (physical torque control preserved)
 - Random-agent, API-check, rendering, and interactive 3D viewer examples
-- Backward-compatible `JakaReachEnv` alias for existing RL training scripts
+- PPO training with live MuJoCo viewer and TensorBoard logging
+- Backward-compatible `PandaReachEnv` and `JakaReachEnv` aliases for existing scripts
 - Lightweight pytest suite
 
 ## Installation
@@ -18,6 +20,12 @@ A minimal, runnable **MuJoCo + Gymnasium** reinforcement-learning environment wi
 ```bash
 cd /mnt/d/work/jaka_zu35_mujoco_rl
 pip install -e ".[dev]"
+```
+
+For RL training, also install the `rl` extras:
+
+```bash
+pip install -e ".[rl]"
 ```
 
 ## Quick Start
@@ -30,23 +38,21 @@ python examples/check_env.py
 
 Expected output: `check_env passed`
 
-The script uses `gymnasium.utils.env_checker.check_env` because the installed `gymnasium==1.3.0` release does not re-export `check_env` at the top level.
-
 ### Run a random agent
 
 ```bash
 python examples/random_agent.py
 ```
 
-Expected: three episodes complete without errors and print step counts, rewards, and final distances.
+Expected: three episodes complete without errors and print step counts, rewards, and final cube-to-tray distances.
 
 ### Render a scene to an image
 
 ```bash
-python examples/render_scene.py --output /tmp/panda_reach_scene.png
+python examples/render_scene.py --output /tmp/panda_pick_scene.png
 ```
 
-Expected: a non-empty PNG file is created at `/tmp/panda_reach_scene.png`.
+Expected: a non-empty PNG file is created at `/tmp/panda_pick_scene.png`.
 
 ### Watch it run in the interactive 3D viewer
 
@@ -54,7 +60,7 @@ Expected: a non-empty PNG file is created at `/tmp/panda_reach_scene.png`.
 python examples/viewer_demo.py
 ```
 
-This opens a MuJoCo 3D window. You will see the Panda arm moving and the red box on the ground, and the terminal prints the distance from the gripper pinch point to the box top after each episode.
+This opens a MuJoCo 3D window. You will see the Panda arm, the red cube, the blue tray, and the arm attempting to pick and place the cube. The terminal prints the cube-to-tray distance after each episode.
 
 Viewer controls:
 - Left drag: rotate camera
@@ -65,14 +71,6 @@ Viewer controls:
 > **Note:** The 3D viewer needs a display (X11 / Wayland / Windows / macOS). It will not open in a headless server or WSL without an X server. On WSL, install an X server such as VcXsrv or WSLg; on a remote server, use X11 forwarding or run locally.
 
 ### Train PPO with live 3D visualization
-
-First install the RL extras:
-
-```bash
-pip install -e ".[rl]"
-```
-
-Then start training:
 
 ```bash
 python examples/train_ppo.py --total-timesteps 200000 --sync-every 100
@@ -91,7 +89,10 @@ A MuJoCo 3D window opens and the Panda arm starts training. Close the window to 
 tensorboard --logdir logs/
 ```
 
-Open `http://localhost:6006` to see reward curves, episode lengths, and losses.
+Open `http://localhost:6006` to see reward curves, episode lengths, and losses. Key metrics:
+- `rollout/ep_rew_mean`: average episode reward, should increase toward 0
+- `rollout/ep_len_mean`: average episode length, should decrease as the policy succeeds faster
+- `train/explained_variance`: should approach 1.0
 
 ### Evaluate the trained model
 
@@ -99,7 +100,7 @@ Open `http://localhost:6006` to see reward curves, episode lengths, and losses.
 python examples/evaluate_ppo.py --model checkpoints/ppo_panda_final.zip --episodes 5
 ```
 
-A 3D window opens and the trained policy runs for 5 episodes. The terminal prints the final distance and success flag for each episode.
+A 3D window opens and the trained policy runs for 5 episodes. The terminal prints the final cube-to-tray distance and success flag for each episode.
 
 ## Tests
 
@@ -109,47 +110,59 @@ Run the lightweight test suite:
 pytest tests/test_env.py -v
 ```
 
-Expected: all 3 tests pass (`test_model_loads`, `test_env_reset_and_step`, `test_gymnasium_api`).
+Expected: all 4 tests pass (`test_model_loads`, `test_env_reset_and_step`, `test_gymnasium_api`, `test_backward_reach_alias_still_works`).
 
 ## Environment Interface
 
 ```python
-from jaka_zu35_mujoco_rl import PandaReachEnv
+from jaka_zu35_mujoco_rl import PandaPickEnv
 
-env = PandaReachEnv()
+env = PandaPickEnv()
 obs, info = env.reset()
 action = env.action_space.sample()
 obs, reward, terminated, truncated, info = env.step(action)
 ```
 
-`JakaReachEnv` is kept as an alias for `PandaReachEnv` so existing training scripts continue to work without changes.
+`PandaReachEnv` and `JakaReachEnv` are kept as aliases for `PandaPickEnv` so existing training scripts continue to work without changes.
 
-### Observation (20-dim)
+### Observation (32-dim)
 
 | Slice | Description |
 |-------|-------------|
 | 0:7   | Arm joint positions |
 | 7:14  | Arm joint velocities |
-| 14:17 | Pinch (end-effector) position |
-| 17:20 | Target box top-center position |
+| 14:17 | End-effector position |
+| 17    | Gripper opening width |
+| 18:21 | Estimated cube 3D position (from simulated camera + color detector) |
+| 21:24 | Target tray position |
+| 24:27 | Cube relative to end effector |
+| 27:30 | Cube relative to target tray |
+| 30    | Detector confidence |
+| 31    | Normalized elapsed steps |
 
-### Action (7-dim)
+### Action (8-dim)
 
-Normalized joint-position targets in `[-1, 1]`, linearly mapped to each arm joint's controller range. The arm uses motor (torque) actuators; an internal PD controller computes the torques required to track the targets. The gripper is held open and is not part of the action space.
+Normalized joint-position targets in `[-1, 1]` for the 7 arm joints, plus one gripper opening command. The arm uses motor (torque) actuators; an internal PD controller computes the torques required to track the targets. The gripper is controlled by the 8th action dimension.
 
 ### Reward and Termination
 
-- Reward: negative Euclidean distance from end-effector to box top, minus a small action penalty.
-- `terminated`: distance falls below `success_threshold` (default 0.05 m).
-- `truncated`: episode reaches `max_episode_steps` (default 500).
+- Dense reward: negative distances for end-effector-to-cube and cube-to-tray, plus small action penalty.
+- Sparse reward: +50 when the cube is placed inside the target tray and remains stable for 50 consecutive steps.
+- Penalty: -20 if the cube falls off the table.
+- `terminated`: cube successfully placed in the tray.
+- `truncated`: episode reaches `max_episode_steps` (default 1000).
+
+## Vision Pipeline
+
+The simulated overhead camera renders the scene at 640×480. The `CubeDetector` class thresholds the red cube in HSV space, extracts the 2D bounding box, and back-projects the centre to a 3D world position using the known camera height and table height. This is a placeholder for a real YOLO or instance-segmentation detector; the interface is designed so it can be swapped out later.
 
 ## Extension Roadmap
 
-- Add a two-finger gripper and grasp-success criterion
-- Multi-box pallet scenes and mixed-product (`cola_24` / `water_12`) stacks
-- Visual observations (RGB / depth) from a camera mounted on the arm or tower
-- ROS2 integration and connection to the `pallet_vision_lidar` perception stack
-- Train a stable reaching / grasping policy with RL or model-based methods
+- Replace color detector with a real YOLO model trained on synthetic MuJoCo renders
+- Multi-cube scenes and mixed object classes
+- Arm-mounted or tower-mounted camera matching the `pallet_vision_lidar` setup
+- ROS2 integration and connection to the real perception stack
+- Real-world deployment on the Franka Panda or JAKA Zu35 arm
 
 ## License
 
