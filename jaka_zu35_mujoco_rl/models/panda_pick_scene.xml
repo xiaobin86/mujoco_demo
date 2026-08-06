@@ -1,0 +1,24 @@
+<mujoco model="panda_pick">
+  <!-- Include the Franka Emika Panda arm + Robotiq 2F85 gripper. -->
+  <include file="franka_panda/panda.xml"/>
+
+  <!-- Include the ground plane, lights, and table. -->
+  <include file="ground.xml"/>
+  <include file="table.xml"/>
+
+  <!-- Include the red cube and target tray. -->
+  <include file="cube_5cm.xml"/>
+  <include file="tray.xml"/>
+
+  <!-- Global camera looking down at the workspace. -->
+  <statistic center="0.5 0 0.4" extent="0.8"/>
+
+  <visual>
+    <headlight diffuse="0.6 0.6 0.6" ambient="0.3 0.3 0.3" specular="0.2 0.2 0.2"/>
+  </visual>
+
+  <!-- Solver/integrator options. -->
+  <option timestep="0.004" iterations="50" tolerance="1e-10" solver="Newton" gravity="0 0 -9.81">
+    <flag warmstart="enable"/>
+  </option>
+</mujoco>
