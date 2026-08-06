@@ -55,11 +55,11 @@ class ViewerSyncCallback(BaseCallback):
         self._checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
     def _on_step(self) -> bool:
-        if not self._viewer.is_running():
+        if self._viewer is not None and not self._viewer.is_running():
             print("\nViewer closed, stopping training.")
             return False
 
-        if self.n_calls % self._sync_every == 0:
+        if self._viewer is not None and self.n_calls % self._sync_every == 0:
             self._viewer.sync()
 
         if self.n_calls % self._checkpoint_every == 0 and self.n_calls > 0:
@@ -91,6 +91,11 @@ def main() -> None:
         help="Save checkpoint every N steps",
     )
     parser.add_argument("--seed", type=int, default=0, help="Random seed")
+    parser.add_argument(
+        "--no-viewer",
+        action="store_true",
+        help="Run training without the interactive MuJoCo viewer (useful for headless servers)",
+    )
     args = parser.parse_args()
 
     env = DummyVecEnv([make_env])
@@ -112,19 +117,29 @@ def main() -> None:
         seed=args.seed,
     )
 
-    print("Opening MuJoCo viewer... Close the window to stop training.")
-    with mujoco.viewer.launch_passive(env.envs[0].model, env.envs[0].data) as viewer:
-        callback = ViewerSyncCallback(
-            viewer,
-            sync_every=args.sync_every,
-            checkpoint_every=args.checkpoint_every,
-        )
+    if args.no_viewer:
+        print("Training without MuJoCo viewer (headless mode).")
+        callback = ViewerSyncCallback(None, sync_every=args.sync_every, checkpoint_every=args.checkpoint_every)
         model.learn(
             total_timesteps=args.total_timesteps,
             callback=callback,
             progress_bar=True,
             reset_num_timesteps=True,
         )
+    else:
+        print("Opening MuJoCo viewer... Close the window to stop training.")
+        with mujoco.viewer.launch_passive(env.envs[0].model, env.envs[0].data) as viewer:
+            callback = ViewerSyncCallback(
+                viewer,
+                sync_every=args.sync_every,
+                checkpoint_every=args.checkpoint_every,
+            )
+            model.learn(
+                total_timesteps=args.total_timesteps,
+                callback=callback,
+                progress_bar=True,
+                reset_num_timesteps=True,
+            )
 
     env.close()
 

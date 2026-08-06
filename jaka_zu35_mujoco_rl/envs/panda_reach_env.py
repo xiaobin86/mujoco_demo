@@ -43,8 +43,8 @@ class PandaReachEnv(gym.Env):
         max_episode_steps: int = 500,
         success_threshold: float = 0.05,
         action_penalty: float = 0.01,
-        pd_kp: float = 1000.0,
-        pd_kd: float = 100.0,
+        pd_kp: float = 200.0,
+        pd_kd: float = 40.0,
         seed: int | None = None,
     ) -> None:
         super().__init__()
@@ -201,6 +201,16 @@ class PandaReachEnv(gym.Env):
         # Step simulation.
         mujoco.mj_step(self._model, self._data)
         self._steps += 1
+
+        # Detect simulation instability. If the integrator produces NaN/Inf in
+        # qpos or qacc, truncate the episode and reset to a fresh state so the
+        # RL loop can continue without crashing.
+        if not (np.isfinite(self._data.qpos).all() and np.isfinite(self._data.qacc).all()):
+            print("WARNING: Simulation unstable, resetting episode.")
+            obs, reset_info = self.reset()
+            reset_info["unstable"] = True
+            reset_info["distance"] = float("inf")
+            return obs, -1000.0, False, True, reset_info
 
         obs = self._get_obs()
         ee_pos = self._data.site_xpos[self._ee_site_id].copy()

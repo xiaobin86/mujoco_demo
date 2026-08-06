@@ -80,6 +80,11 @@ python examples/train_ppo.py --total-timesteps 200000 --sync-every 100
 
 A MuJoCo 3D window opens and the Panda arm starts training. Close the window to stop training. The terminal shows a progress bar and Stable-Baselines3 metrics; TensorBoard logs are written to `logs/` and the final model is saved to `checkpoints/ppo_panda_final.zip`.
 
+> **Note:** On a headless server or WSL without an X server, the viewer cannot open. Use `--no-viewer` to train without the interactive window:
+> ```bash
+> python examples/train_ppo.py --no-viewer --total-timesteps 200000
+> ```
+
 ### Monitor training with TensorBoard
 
 ```bash
