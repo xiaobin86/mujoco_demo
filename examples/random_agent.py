@@ -1,10 +1,10 @@
-"""Run a random agent for a few episodes in JakaReachEnv."""
+"""Run a random agent for a few episodes in PandaReachEnv."""
 
-from jaka_zu35_mujoco_rl import JakaReachEnv
+from jaka_zu35_mujoco_rl import PandaReachEnv
 
 
 def main() -> None:
-    env = JakaReachEnv()
+    env = PandaReachEnv()
 
     num_episodes = 3
     max_steps = 500

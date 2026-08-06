@@ -1,4 +1,4 @@
-"""Launch an interactive MuJoCo 3D viewer and watch JakaReachEnv run.
+"""Launch an interactive MuJoCo 3D viewer and watch PandaReachEnv run.
 
 --- How to run ---
 
@@ -26,10 +26,10 @@ from typing import Any
 
 import mujoco.viewer
 
-from jaka_zu35_mujoco_rl import JakaReachEnv
+from jaka_zu35_mujoco_rl import PandaReachEnv
 
 
-def run_episodes(env: JakaReachEnv, viewer: Any, num_episodes: int, sleep_dt: float) -> None:
+def run_episodes(env: PandaReachEnv, viewer: Any, num_episodes: int, sleep_dt: float) -> None:
     """Step a random policy while the viewer window is open."""
     for episode in range(num_episodes):
         if not viewer.is_running():
@@ -56,7 +56,7 @@ def run_episodes(env: JakaReachEnv, viewer: Any, num_episodes: int, sleep_dt: fl
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Interactive MuJoCo viewer for JakaReachEnv")
+    parser = argparse.ArgumentParser(description="Interactive MuJoCo viewer for PandaReachEnv")
     parser.add_argument("--episodes", type=int, default=3, help="Number of episodes to run")
     parser.add_argument("--seed", type=int, default=0, help="Random seed")
     parser.add_argument(
@@ -67,7 +67,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    env = JakaReachEnv(seed=args.seed)
+    env = PandaReachEnv(seed=args.seed)
     env.reset(seed=args.seed)
 
     print("Opening MuJoCo viewer... Close the window to stop.")
