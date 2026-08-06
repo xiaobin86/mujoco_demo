@@ -1,0 +1,43 @@
+version: "1.0"
+
+description: >
+  Reward configuration for PandaPickEnv. All distances are in meters and rewards
+  are dimensionless. Tune these values to change the shaping without editing code.
+
+rewards:
+  time_penalty: -0.05
+
+  approach:
+    scale: 2.0
+    distance: 0.1
+
+  grasp:
+    bonus: 2.0
+    distance: 0.05
+
+  lift:
+    scale: 5.0
+    height: 0.1
+    reference_height: 0.025
+
+  transport:
+    scale: 2.0
+    distance: 0.1
+
+  success:
+    bonus: 500.0
+    threshold: 0.05
+    hold_steps: 50
+    min_height: 0.03
+
+  drop:
+    penalty: -50.0
+    height: -0.05
+
+  action:
+    penalty: -0.0001
+
+logging:
+  log_reward_components: true
+  log_success_rate: true
+  success_rate_window: 100
