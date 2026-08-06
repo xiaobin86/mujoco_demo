@@ -26,6 +26,9 @@ logs/
 checkpoints/
 *.png
 
+# OpenCode / agent runtime
+.omo/
+
 # IDE
 .vscode/
 .idea/
