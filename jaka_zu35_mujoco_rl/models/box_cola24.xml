@@ -1,0 +1,12 @@
+<mujocoinclude>
+  <asset>
+    <material name="box_cola24" rgba="0.8 0.2 0.2 1.0" specular="0.3" shininess="0.3"/>
+  </asset>
+  <worldbody>
+    <body name="target_box" pos="0.5 0.0 0.12">
+      <freejoint name="box_joint"/>
+      <geom name="box_geom" type="box" size="0.2 0.135 0.12" material="box_cola24" mass="14.0" friction="1.0 0.005 0.0001"/>
+      <site name="box_top" pos="0.0 0.0 0.12" size="0.03" rgba="0.0 1.0 0.0 0.5"/>
+    </body>
+  </worldbody>
+</mujocoinclude>
