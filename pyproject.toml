@@ -5,14 +5,14 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "jaka_zu35_mujoco_rl"
 version = "0.1.0"
-description = "A minimal MuJoCo RL environment for JAKA Zu35 arm + box reaching."
+description = "A minimal MuJoCo RL environment for Franka Panda pick-and-place of a small cube."
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
     {name = "Acelan", email = "acelan@example.com"}
 ]
-keywords = ["mujoco", "reinforcement-learning", "robotics", "jaka"]
+keywords = ["mujoco", "reinforcement-learning", "robotics", "franka", "pick-and-place"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -25,6 +25,8 @@ dependencies = [
     "mujoco>=3.0.0",
     "gymnasium>=1.0.0",
     "numpy",
+    "opencv-python",
+    "pyyaml",
 ]
 
 [project.optional-dependencies]
