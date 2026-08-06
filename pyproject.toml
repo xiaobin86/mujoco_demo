@@ -32,6 +32,10 @@ dev = [
     "pytest",
     "imageio",
 ]
+rl = [
+    "stable-baselines3",
+    "tensorboard",
+]
 
 [project.urls]
 Homepage = "https://github.com/example/jaka_zu35_mujoco_rl"
