@@ -1,8 +1,5 @@
 """Run a random agent for a few episodes in JakaReachEnv."""
 
-import gymnasium as gym
-import numpy as np
-
 from jaka_zu35_mujoco_rl import JakaReachEnv
 
 
