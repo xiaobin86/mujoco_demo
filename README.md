@@ -1,14 +1,16 @@
-# JAKA Zu35 MuJoCo RL Environment
+# Franka Panda MuJoCo RL Environment
 
-A minimal, runnable **MuJoCo + Gymnasium** reinforcement-learning environment with a simplified JAKA Zu35 6-axis robotic arm and a single `cola_24` box target.
+A minimal, runnable **MuJoCo + Gymnasium** reinforcement-learning environment with a Franka Emika Panda 7-axis robotic arm and a single `cola_24` box target.
 
 ## Features
 
-- Simplified JAKA Zu35 6-axis arm MuJoCo model
+- Franka Emika Panda 7-axis arm MuJoCo model with Robotiq 2F85 gripper
 - Single `cola_24` box scene (0.4 × 0.27 × 0.24 m)
 - Gymnasium-compatible `Env` interface
-- 18-dimensional observation + 6-dimensional normalized joint-position control
+- 20-dimensional observation + 7-dimensional normalized joint-position control
+- Motor actuators with internal PD position tracking (physical torque control preserved)
 - Random-agent, API-check, rendering, and interactive 3D viewer examples
+- Backward-compatible `JakaReachEnv` alias for existing RL training scripts
 - Lightweight pytest suite
 
 ## Installation
@@ -41,10 +43,10 @@ Expected: three episodes complete without errors and print step counts, rewards,
 ### Render a scene to an image
 
 ```bash
-python examples/render_scene.py --output /tmp/jaka_reach_scene.png
+python examples/render_scene.py --output /tmp/panda_reach_scene.png
 ```
 
-Expected: a non-empty PNG file is created at `/tmp/jaka_reach_scene.png`.
+Expected: a non-empty PNG file is created at `/tmp/panda_reach_scene.png`.
 
 ### Watch it run in the interactive 3D viewer
 
@@ -52,7 +54,7 @@ Expected: a non-empty PNG file is created at `/tmp/jaka_reach_scene.png`.
 python examples/viewer_demo.py
 ```
 
-This opens a MuJoCo 3D window. You will see the arm moving and the red box on the ground, and the terminal prints the distance from the end-effector to the box top after each episode.
+This opens a MuJoCo 3D window. You will see the Panda arm moving and the red box on the ground, and the terminal prints the distance from the gripper pinch point to the box top after each episode.
 
 Viewer controls:
 - Left drag: rotate camera
@@ -61,6 +63,38 @@ Viewer controls:
 - Close the window: stop the demo
 
 > **Note:** The 3D viewer needs a display (X11 / Wayland / Windows / macOS). It will not open in a headless server or WSL without an X server. On WSL, install an X server such as VcXsrv or WSLg; on a remote server, use X11 forwarding or run locally.
+
+### Train PPO with live 3D visualization
+
+First install the RL extras:
+
+```bash
+pip install -e ".[rl]"
+```
+
+Then start training:
+
+```bash
+python examples/train_ppo.py --total-timesteps 200000 --sync-every 100
+```
+
+A MuJoCo 3D window opens and the Panda arm starts training. Close the window to stop training. The terminal shows a progress bar and Stable-Baselines3 metrics; TensorBoard logs are written to `logs/` and the final model is saved to `checkpoints/ppo_panda_final.zip`.
+
+### Monitor training with TensorBoard
+
+```bash
+tensorboard --logdir logs/
+```
+
+Open `http://localhost:6006` to see reward curves, episode lengths, and losses.
+
+### Evaluate the trained model
+
+```bash
+python examples/evaluate_ppo.py --model checkpoints/ppo_panda_final.zip --episodes 5
+```
+
+A 3D window opens and the trained policy runs for 5 episodes. The terminal prints the final distance and success flag for each episode.
 
 ## Tests
 
@@ -75,26 +109,28 @@ Expected: all 3 tests pass (`test_model_loads`, `test_env_reset_and_step`, `test
 ## Environment Interface
 
 ```python
-from jaka_zu35_mujoco_rl import JakaReachEnv
+from jaka_zu35_mujoco_rl import PandaReachEnv
 
-env = JakaReachEnv()
+env = PandaReachEnv()
 obs, info = env.reset()
 action = env.action_space.sample()
 obs, reward, terminated, truncated, info = env.step(action)
 ```
 
-### Observation (18-dim)
+`JakaReachEnv` is kept as an alias for `PandaReachEnv` so existing training scripts continue to work without changes.
+
+### Observation (20-dim)
 
 | Slice | Description |
 |-------|-------------|
-| 0:6   | Arm joint positions |
-| 6:12  | Arm joint velocities |
-| 12:15 | End-effector position |
-| 15:18 | Target box top-center position |
+| 0:7   | Arm joint positions |
+| 7:14  | Arm joint velocities |
+| 14:17 | Pinch (end-effector) position |
+| 17:20 | Target box top-center position |
 
-### Action (6-dim)
+### Action (7-dim)
 
-Normalized joint-position targets in `[-1, 1]`, linearly mapped to each joint's controller range.
+Normalized joint-position targets in `[-1, 1]`, linearly mapped to each arm joint's controller range. The arm uses motor (torque) actuators; an internal PD controller computes the torques required to track the targets. The gripper is held open and is not part of the action space.
 
 ### Reward and Termination
 
