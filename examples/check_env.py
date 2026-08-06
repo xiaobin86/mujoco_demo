@@ -1,11 +1,11 @@
-"""Run the Gymnasium API environment checker on PandaReachEnv."""
+"""Run the Gymnasium API environment checker on PandaPickEnv."""
 
 from gymnasium.utils.env_checker import check_env
-from jaka_zu35_mujoco_rl.envs.panda_reach_env import PandaReachEnv
+from jaka_zu35_mujoco_rl import PandaPickEnv
 
 
 def main() -> None:
-    env = PandaReachEnv()
+    env = PandaPickEnv()
     check_env(env, skip_render_check=True)
     print("check_env passed")
 

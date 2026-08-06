@@ -1,10 +1,10 @@
-"""Run a random agent for a few episodes in PandaReachEnv."""
+"""Run a random agent for a few episodes in PandaPickEnv."""
 
-from jaka_zu35_mujoco_rl import PandaReachEnv
+from jaka_zu35_mujoco_rl import PandaPickEnv
 
 
 def main() -> None:
-    env = PandaReachEnv()
+    env = PandaPickEnv()
 
     num_episodes = 3
     max_steps = 500
@@ -25,7 +25,7 @@ def main() -> None:
         print(
             f"Episode {episode + 1}: "
             f"steps={step}, reward={episode_reward:.4f}, "
-            f"success={terminated}, final_distance={info['distance']:.4f}"
+            f"success={terminated}, cube_to_tray={info['distance_cube_to_tray']:.4f}"
         )
 
     env.close()
