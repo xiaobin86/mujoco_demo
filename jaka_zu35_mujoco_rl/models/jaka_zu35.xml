@@ -14,45 +14,55 @@
     <material name="ee_red" rgba="0.9 0.2 0.2 1.0" specular="0.3" shininess="0.3"/>
   </asset>
 
+  <!-- Adjacent parent-child links share a joint and are allowed to overlap visually. -->
+  <contact>
+    <exclude body1="base" body2="link1"/>
+    <exclude body1="link1" body2="link2"/>
+    <exclude body1="link2" body2="link3"/>
+    <exclude body1="link3" body2="link4"/>
+    <exclude body1="link4" body2="link5"/>
+    <exclude body1="link5" body2="link6"/>
+  </contact>
+
   <worldbody>
     <!-- Base -->
     <body name="base" pos="0 0 0">
-      <geom type="cylinder" size="0.12 0.08" material="link_gray" mass="5.0"/>
+      <geom name="base_cylinder" type="cylinder" size="0.12 0.08" pos="0 0 0.08" material="link_gray" mass="5.0"/>
 
       <!-- Link 1 (rotates around Z) -->
       <body name="link1" pos="0 0 0.08">
         <joint name="joint_1" type="hinge" axis="0 0 1" range="-3.14159 3.14159" damping="2.0" armature="0.1"/>
-        <geom type="cylinder" size="0.08 0.15" pos="0 0 0.15" material="link_gray" mass="3.0"/>
-        <geom type="sphere" size="0.09" material="joint_dark" mass="0.5"/>
+        <geom name="link1_cylinder" type="cylinder" size="0.08 0.15" pos="0 0 0.15" material="link_gray" mass="3.0"/>
+        <geom name="link1_joint_sphere" type="sphere" size="0.07" material="joint_dark" mass="0.5"/>
 
         <!-- Link 2 -->
         <body name="link2" pos="0 0 0.30">
           <joint name="joint_2" type="hinge" axis="0 1 0" range="-1.5708 1.5708" damping="2.0" armature="0.1"/>
-          <geom type="capsule" size="0.07" fromto="0 0 0 0 0 0.35" material="link_gray" mass="3.0"/>
-          <geom type="sphere" size="0.08" material="joint_dark" mass="0.5"/>
+          <geom name="link2_capsule" type="capsule" size="0.07" fromto="0 0 0 0 0 0.35" material="link_gray" mass="3.0"/>
+          <geom name="link2_joint_sphere" type="sphere" size="0.08" material="joint_dark" mass="0.5"/>
 
           <!-- Link 3 -->
           <body name="link3" pos="0 0 0.35">
             <joint name="joint_3" type="hinge" axis="0 1 0" range="-1.5708 1.5708" damping="2.0" armature="0.1"/>
-            <geom type="capsule" size="0.06" fromto="0 0 0 0 0 0.30" material="link_gray" mass="2.5"/>
-            <geom type="sphere" size="0.07" material="joint_dark" mass="0.5"/>
+            <geom name="link3_capsule" type="capsule" size="0.06" fromto="0 0 0 0 0 0.30" material="link_gray" mass="2.5"/>
+            <geom name="link3_joint_sphere" type="sphere" size="0.07" material="joint_dark" mass="0.5"/>
 
             <!-- Link 4 (wrist roll) -->
             <body name="link4" pos="0 0 0.30">
               <joint name="joint_4" type="hinge" axis="0 0 1" range="-3.14159 3.14159" damping="1.0" armature="0.05"/>
-              <geom type="capsule" size="0.05" fromto="0 0 0 0 0 0.15" material="link_gray" mass="1.5"/>
-              <geom type="sphere" size="0.06" material="joint_dark" mass="0.3"/>
+              <geom name="link4_capsule" type="capsule" size="0.05" fromto="0 0 0 0 0 0.15" material="link_gray" mass="1.5"/>
+              <geom name="link4_joint_sphere" type="sphere" size="0.06" material="joint_dark" mass="0.3"/>
 
               <!-- Link 5 -->
               <body name="link5" pos="0 0 0.15">
                 <joint name="joint_5" type="hinge" axis="0 1 0" range="-1.5708 1.5708" damping="1.0" armature="0.05"/>
-                <geom type="capsule" size="0.04" fromto="0 0 0 0 0 0.12" material="link_gray" mass="1.0"/>
-                <geom type="sphere" size="0.05" material="joint_dark" mass="0.2"/>
+                <geom name="link5_capsule" type="capsule" size="0.04" fromto="0 0 0 0 0 0.12" material="link_gray" mass="1.0"/>
+                <geom name="link5_joint_sphere" type="sphere" size="0.05" material="joint_dark" mass="0.2"/>
 
                 <!-- Link 6 + end-effector -->
                 <body name="link6" pos="0 0 0.12">
                   <joint name="joint_6" type="hinge" axis="0 0 1" range="-3.14159 3.14159" damping="1.0" armature="0.05"/>
-                  <geom type="capsule" size="0.03" fromto="0 0 0 0 0 0.08" material="link_gray" mass="0.5"/>
+                  <geom name="link6_capsule" type="capsule" size="0.03" fromto="0 0 0 0 0 0.08" material="link_gray" mass="0.5"/>
                   <site name="end_effector" pos="0 0 0.10" size="0.04" material="ee_red"/>
                 </body>
               </body>
