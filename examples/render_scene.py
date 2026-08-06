@@ -16,7 +16,7 @@ def main() -> None:
     env = JakaReachEnv(render_mode="rgb_array")
     env.reset(seed=0)
 
-    # Let the arm settle for a few steps with zero action.
+    # Let the arm settle for a few steps with random actions.
     for _ in range(20):
         env.step(env.action_space.sample())
 
@@ -24,7 +24,7 @@ def main() -> None:
     if frame is None:
         raise RuntimeError("render() returned None")
 
-    imageio.imwrite(args.output, frame)
+    imageio.v3.imwrite(args.output, frame)
     print(f"Saved render to {Path(args.output).resolve()}")
     env.close()
 
