@@ -8,7 +8,7 @@ A minimal, runnable **MuJoCo + Gymnasium** reinforcement-learning environment wi
 - Single `cola_24` box scene (0.4 × 0.27 × 0.24 m)
 - Gymnasium-compatible `Env` interface
 - 18-dimensional observation + 6-dimensional normalized joint-position control
-- Random-agent, API-check, and rendering examples
+- Random-agent, API-check, rendering, and interactive 3D viewer examples
 - Lightweight pytest suite
 
 ## Installation
@@ -45,6 +45,22 @@ python examples/render_scene.py --output /tmp/jaka_reach_scene.png
 ```
 
 Expected: a non-empty PNG file is created at `/tmp/jaka_reach_scene.png`.
+
+### Watch it run in the interactive 3D viewer
+
+```bash
+python examples/viewer_demo.py
+```
+
+This opens a MuJoCo 3D window. You will see the arm moving and the red box on the ground, and the terminal prints the distance from the end-effector to the box top after each episode.
+
+Viewer controls:
+- Left drag: rotate camera
+- Right drag: pan camera
+- Scroll: zoom
+- Close the window: stop the demo
+
+> **Note:** The 3D viewer needs a display (X11 / Wayland / Windows / macOS). It will not open in a headless server or WSL without an X server. On WSL, install an X server such as VcXsrv or WSLg; on a remote server, use X11 forwarding or run locally.
 
 ## Tests
 
