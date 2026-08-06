@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import Any
 
@@ -56,10 +55,9 @@ class JakaReachEnv(gym.Env):
         self._model = mujoco.MjModel.from_xml_path(str(xml_path))
         self._data = mujoco.MjData(self._model)
 
-        # Arm joint indices (first 6 qpos/qvel after excluding box freejoint).
+        # Arm joint indices (first 6 qpos/qvel).
         self._arm_qpos_ids = np.arange(0, 6)
         self._arm_qvel_ids = np.arange(0, 6)
-        self._arm_actuator_ids = np.arange(0, 6)
 
         # Joint limits from the model.
         self._joint_low = self._model.jnt_range[:6, 0].copy()
@@ -68,7 +66,6 @@ class JakaReachEnv(gym.Env):
         # End-effector site id.
         self._ee_site_id = mujoco.mj_name2id(self._model, mujoco.mjtObj.mjOBJ_SITE, "end_effector")
         self._box_top_site_id = mujoco.mj_name2id(self._model, mujoco.mjtObj.mjOBJ_SITE, "box_top")
-        self._box_body_id = mujoco.mj_name2id(self._model, mujoco.mjtObj.mjOBJ_BODY, "target_box")
 
         # Box qpos indices (freejoint, 7 dofs: pos + quat).
         box_joint_id = mujoco.mj_name2id(self._model, mujoco.mjtObj.mjOBJ_JOINT, "box_joint")
