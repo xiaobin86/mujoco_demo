@@ -1,0 +1,74 @@
+<mujoco model="jaka_zu35">
+  <compiler angle="radian" meshdir="." autolimits="true"/>
+
+  <include file="ground.xml"/>
+  <include file="box_cola24.xml"/>
+
+  <option timestep="0.004" iterations="50" tolerance="1e-10" solver="Newton" gravity="0 0 -9.81">
+    <flag warmstart="enable"/>
+  </option>
+
+  <asset>
+    <material name="link_gray" rgba="0.5 0.55 0.6 1.0" specular="0.4" shininess="0.3"/>
+    <material name="joint_dark" rgba="0.2 0.2 0.25 1.0" specular="0.5" shininess="0.5"/>
+    <material name="ee_red" rgba="0.9 0.2 0.2 1.0" specular="0.3" shininess="0.3"/>
+  </asset>
+
+  <worldbody>
+    <!-- Base -->
+    <body name="base" pos="0 0 0">
+      <geom type="cylinder" size="0.12 0.08" material="link_gray" mass="5.0"/>
+
+      <!-- Link 1 (rotates around Z) -->
+      <body name="link1" pos="0 0 0.08">
+        <joint name="joint_1" type="hinge" axis="0 0 1" range="-3.14159 3.14159" damping="2.0" armature="0.1"/>
+        <geom type="cylinder" size="0.08 0.15" pos="0 0 0.15" material="link_gray" mass="3.0"/>
+        <geom type="sphere" size="0.09" material="joint_dark" mass="0.5"/>
+
+        <!-- Link 2 -->
+        <body name="link2" pos="0 0 0.30">
+          <joint name="joint_2" type="hinge" axis="0 1 0" range="-1.5708 1.5708" damping="2.0" armature="0.1"/>
+          <geom type="capsule" size="0.07" fromto="0 0 0 0 0 0.35" material="link_gray" mass="3.0"/>
+          <geom type="sphere" size="0.08" material="joint_dark" mass="0.5"/>
+
+          <!-- Link 3 -->
+          <body name="link3" pos="0 0 0.35">
+            <joint name="joint_3" type="hinge" axis="0 1 0" range="-1.5708 1.5708" damping="2.0" armature="0.1"/>
+            <geom type="capsule" size="0.06" fromto="0 0 0 0 0 0.30" material="link_gray" mass="2.5"/>
+            <geom type="sphere" size="0.07" material="joint_dark" mass="0.5"/>
+
+            <!-- Link 4 (wrist roll) -->
+            <body name="link4" pos="0 0 0.30">
+              <joint name="joint_4" type="hinge" axis="0 0 1" range="-3.14159 3.14159" damping="1.0" armature="0.05"/>
+              <geom type="capsule" size="0.05" fromto="0 0 0 0 0 0.15" material="link_gray" mass="1.5"/>
+              <geom type="sphere" size="0.06" material="joint_dark" mass="0.3"/>
+
+              <!-- Link 5 -->
+              <body name="link5" pos="0 0 0.15">
+                <joint name="joint_5" type="hinge" axis="0 1 0" range="-1.5708 1.5708" damping="1.0" armature="0.05"/>
+                <geom type="capsule" size="0.04" fromto="0 0 0 0 0 0.12" material="link_gray" mass="1.0"/>
+                <geom type="sphere" size="0.05" material="joint_dark" mass="0.2"/>
+
+                <!-- Link 6 + end-effector -->
+                <body name="link6" pos="0 0 0.12">
+                  <joint name="joint_6" type="hinge" axis="0 0 1" range="-3.14159 3.14159" damping="1.0" armature="0.05"/>
+                  <geom type="capsule" size="0.03" fromto="0 0 0 0 0 0.08" material="link_gray" mass="0.5"/>
+                  <site name="end_effector" pos="0 0 0.10" size="0.04" material="ee_red"/>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <position joint="joint_1" kp="500" kv="50" ctrlrange="-3.14159 3.14159"/>
+    <position joint="joint_2" kp="400" kv="40" ctrlrange="-1.5708 1.5708"/>
+    <position joint="joint_3" kp="300" kv="30" ctrlrange="-1.5708 1.5708"/>
+    <position joint="joint_4" kp="200" kv="20" ctrlrange="-3.14159 3.14159"/>
+    <position joint="joint_5" kp="150" kv="15" ctrlrange="-1.5708 1.5708"/>
+    <position joint="joint_6" kp="100" kv="10" ctrlrange="-3.14159 3.14159"/>
+  </actuator>
+</mujoco>
