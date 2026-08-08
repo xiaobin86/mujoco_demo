@@ -21,8 +21,8 @@ _DEFAULT_REWARD_CONFIG: dict[str, Any] = {
     "rewards": {
         "time_penalty": -0.05,
         "approach": {"scale": 2.0, "distance": 0.08},
-        "grasp": {"bonus": 2.0, "distance": 0.04},
-        "lift": {"scale": 5.0, "height": 0.08, "reference_height": 0.015, "min_lifted_height": 0.08},
+        "grasp": {"bonus": 5.0, "distance": 0.04, "closure_bonus": 5.0, "closure_distance": 0.04},
+        "lift": {"scale": 8.0, "height": 0.08, "reference_height": 0.015, "min_lifted_height": 0.08},
         "transport": {"scale": 2.0, "distance": 0.08, "ee_max_distance": 0.2},
         "success": {
             "bonus": 500.0,
@@ -445,6 +445,16 @@ class SO101PickEnv(gym.Env):
         if distance_ee_to_cube < rc["grasp"]["distance"] and gripper_command < 0.0:
             grasp_reward = float(rc["grasp"]["bonus"])
 
+        # Dense closure reward: reward the actual physical gripper closedness
+        # when the end-effector is near the cube. This helps the policy learn
+        # to pinch the cube rather than just hover close to it.
+        gripper_closure_reward = 0.0
+        closure_distance = rc["grasp"].get("closure_distance", rc["grasp"]["distance"])
+        closure_bonus = rc["grasp"].get("closure_bonus", 0.0)
+        if distance_ee_to_cube < closure_distance:
+            closedness = 1.0 - self._gripper_opening  # 0 = open, 1 = closed
+            gripper_closure_reward = float(closure_bonus * closedness)
+
         lift_height = cube_height - rc["lift"]["reference_height"]
         lift_reward = float(rc["lift"]["scale"] * np.clip(lift_height / rc["lift"]["height"], 0.0, 1.0))
 
@@ -496,6 +506,7 @@ class SO101PickEnv(gym.Env):
             time_reward
             + approach_reward
             + grasp_reward
+            + gripper_closure_reward
             + lift_reward
             + transport_reward
             + success_reward
@@ -526,6 +537,7 @@ class SO101PickEnv(gym.Env):
                 "time": time_reward,
                 "approach": approach_reward,
                 "grasp": grasp_reward,
+                "gripper_closure": gripper_closure_reward,
                 "lift": lift_reward,
                 "transport": transport_reward,
                 "success": success_reward,

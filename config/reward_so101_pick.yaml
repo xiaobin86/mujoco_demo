@@ -13,11 +13,13 @@ rewards:
     distance: 0.08
 
   grasp:
-    bonus: 1.0
+    bonus: 5.0
     distance: 0.04
+    closure_bonus: 5.0
+    closure_distance: 0.04
 
   lift:
-    scale: 2.0
+    scale: 8.0
     height: 0.08
     reference_height: 0.015
     min_lifted_height: 0.08
