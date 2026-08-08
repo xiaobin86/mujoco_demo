@@ -16,22 +16,25 @@ from jaka_zu35_mujoco_rl.vision import CubeDetector
 
 
 _DEFAULT_REWARD_CONFIG: dict[str, Any] = {
-    "version": "1.0",
+    "version": "1.1",
     "description": "Default reward configuration for PandaPickEnv.",
     "rewards": {
         "time_penalty": -0.05,
         "approach": {"scale": 2.0, "distance": 0.1},
         "grasp": {"bonus": 2.0, "distance": 0.05},
-        "lift": {"scale": 5.0, "height": 0.1, "reference_height": 0.025},
-        "transport": {"scale": 2.0, "distance": 0.1},
+        "lift": {"scale": 5.0, "height": 0.1, "reference_height": 0.015, "min_lifted_height": 0.08},
+        "transport": {"scale": 2.0, "distance": 0.1, "ee_max_distance": 0.2},
         "success": {
             "bonus": 500.0,
             "threshold": 0.05,
             "hold_steps": 50,
-            "min_height": 0.03,
+            "min_height": 0.08,
+            "require_lifted": True,
         },
         "drop": {"penalty": -50.0, "height": -0.05},
         "action": {"penalty": -0.0001},
+        "push": {"penalty": -10.0, "distance": 0.06, "min_displacement": 0.001},
+        "open_gripper": {"penalty": -0.5, "distance": 0.04},
     },
     "logging": {
         "log_reward_components": True,
@@ -105,7 +108,23 @@ class PandaPickEnv(gym.Env):
         See ``config/reward_panda_pick.yaml`` for the default structure.
     """
 
+    # Offscreen rendering of named fixed cameras returns black images in this
+    # environment, so we use a free camera positioned overhead for RGB capture
+    # and vision-based cube detection.
+    _OVERHEAD_LOOKAT = np.array([0.5, 0.0, 0.0])
+    _OVERHEAD_DISTANCE = 1.2
+    _OVERHEAD_AZIMUTH = 90.0
+    _OVERHEAD_ELEVATION = -90.0
+
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 60}
+
+    @property
+    def model(self) -> mujoco.MjModel:
+        return self._model
+
+    @property
+    def data(self) -> mujoco.MjData:
+        return self._data
 
     def __init__(
         self,
@@ -120,6 +139,7 @@ class PandaPickEnv(gym.Env):
         camera_fovy: float = 45.0,
         detector_noise_std: float = 0.005,
         reward_config: dict[str, Any] | str | Path | None = None,
+        fast_observation: bool = False,
     ) -> None:
         super().__init__()
 
@@ -128,6 +148,7 @@ class PandaPickEnv(gym.Env):
 
         self.render_mode = render_mode
         self.max_episode_steps = max_episode_steps
+        self._fast_observation = bool(fast_observation)
 
         self._reward_config = _load_reward_config(reward_config)
         if reward_config is None:
@@ -173,18 +194,28 @@ class PandaPickEnv(gym.Env):
         # End-effector site id: the "pinch" site sits between the gripper fingers.
         self._ee_site_id = mujoco.mj_name2id(self._model, mujoco.mjtObj.mjOBJ_SITE, "pinch")
 
-        # Cube body and joint ids.
+        cube_geom_id = mujoco.mj_name2id(self._model, mujoco.mjtObj.mjOBJ_GEOM, "cube_geom")
+        self._cube_half_size = float(self._model.geom_size[cube_geom_id, 0])
         self._cube_body_id = mujoco.mj_name2id(self._model, mujoco.mjtObj.mjOBJ_BODY, "cube")
         cube_joint_id = mujoco.mj_name2id(self._model, mujoco.mjtObj.mjOBJ_JOINT, "cube_joint")
         self._cube_qpos_start = self._model.jnt_qposadr[cube_joint_id]
         self._cube_qpos_ids = np.arange(self._cube_qpos_start, self._cube_qpos_start + 7)
 
-        # Tray (target) body id.
         self._tray_body_id = mujoco.mj_name2id(self._model, mujoco.mjtObj.mjOBJ_BODY, "tray")
 
-        self._camera_id = mujoco.mj_name2id(self._model, mujoco.mjtObj.mjOBJ_CAMERA, "overhead_cam")
-        camera_position = self._model.cam_pos[self._camera_id].copy()
-        camera_rotation = self._model.cam_mat0[self._camera_id].copy().reshape(3, 3)
+        # Use a free camera for offscreen rendering; model fixed cameras render
+        # black in the current MuJoCo/Python setup.
+        self._overhead_camera = mujoco.MjvCamera()
+        self._overhead_camera.type = mujoco.mjtCamera.mjCAMERA_FREE
+        self._overhead_camera.lookat[:] = self._OVERHEAD_LOOKAT
+        self._overhead_camera.distance = self._OVERHEAD_DISTANCE
+        self._overhead_camera.azimuth = self._OVERHEAD_AZIMUTH
+        self._overhead_camera.elevation = self._OVERHEAD_ELEVATION
+
+        camera_position = self._OVERHEAD_LOOKAT + np.array([0.0, 0.0, self._OVERHEAD_DISTANCE])
+        camera_rotation = np.array(
+            [[1.0, 0.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, -1.0]], dtype=np.float64
+        )
 
         self._table_height = 0.0
 
@@ -192,7 +223,7 @@ class PandaPickEnv(gym.Env):
             camera_position=camera_position,
             camera_rotation=camera_rotation,
             table_height=self._table_height,
-            cube_half_size=0.025,
+            cube_half_size=self._cube_half_size,
             fovy=camera_fovy,
             image_size=(480, 640),
             noise_std=detector_noise_std,
@@ -259,13 +290,29 @@ class PandaPickEnv(gym.Env):
         except Exception:
             return 0.0
 
+    def set_cube_position(self, position: np.ndarray) -> None:
+        """Place the cube at a known world position for replay / debugging."""
+        position = np.asarray(position, dtype=np.float64)
+        cube_qpos = np.zeros(7, dtype=np.float64)
+        cube_qpos[:3] = position
+        cube_qpos[3] = 1.0
+        self._data.qpos[self._cube_qpos_ids] = cube_qpos
+        mujoco.mj_forward(self._model, self._data)
+
     def _detect_cube(self) -> dict[str, Any]:
         """Render an RGB image and run the cube detector."""
         if self._renderer is None:
             self._renderer = mujoco.Renderer(self._model, height=480, width=640)
-        self._renderer.update_scene(self._data, camera=self._camera_id)
+        self._renderer.update_scene(self._data, camera=self._overhead_camera)
         rgb = self._renderer.render()
         return self._detector.detect(rgb, rng=self.__np_random)
+
+    def _fast_detect_cube(self) -> dict[str, Any]:
+        """Return the ground-truth cube position with detector noise, skipping offscreen rendering."""
+        position = self._get_cube_position()
+        if self._detector.noise_std > 0.0:
+            position = position + self._np_random.normal(0.0, self._detector.noise_std, size=3)
+        return {"detected": True, "position": position, "confidence": 1.0, "bbox": None}
 
     def reset(
         self,
@@ -280,6 +327,7 @@ class PandaPickEnv(gym.Env):
         mujoco.mj_resetData(self._model, self._data)
         self._steps = 0
         self._success_hold = 0
+        self._cube_lifted = False
 
         # Randomize arm joint positions within safe ranges.
         arm_qpos = self._np_random.uniform(
@@ -302,7 +350,7 @@ class PandaPickEnv(gym.Env):
         # Randomize cube position on the table.
         cube_x = self._np_random.uniform(0.30, 0.60)
         cube_y = self._np_random.uniform(-0.25, 0.25)
-        cube_z = 0.025 + self._table_height
+        cube_z = self._cube_half_size + self._table_height
         cube_pos = np.array([cube_x, cube_y, cube_z], dtype=np.float64)
 
         cube_qpos = np.zeros(7, dtype=np.float64)
@@ -316,6 +364,7 @@ class PandaPickEnv(gym.Env):
         self._cube_position = self._get_cube_position()
         self._tray_position = self._get_tray_position()
         self._gripper_opening = self._get_gripper_opening()
+        self._prev_cube_position = self._cube_position[:2].copy()
 
         obs = self._get_obs()
         info: dict[str, Any] = {}
@@ -355,7 +404,7 @@ class PandaPickEnv(gym.Env):
             return obs, -100.0, False, True, reset_info
 
         # Update state estimates.
-        detection = self._detect_cube()
+        detection = self._fast_detect_cube() if self._fast_observation else self._detect_cube()
         self._cube_position = detection["position"] if detection["detected"] else self._get_cube_position()
         self._tray_position = self._get_tray_position()
         self._gripper_opening = self._get_gripper_opening()
@@ -370,6 +419,10 @@ class PandaPickEnv(gym.Env):
 
         rc = self._reward_config["rewards"]
 
+        cube_horizontal_displacement = float(np.linalg.norm(cube_pos[:2] - self._prev_cube_position))
+        if cube_height >= rc["lift"]["min_lifted_height"]:
+            self._cube_lifted = True
+
         time_reward = float(rc["time_penalty"])
         approach_reward = float(
             rc["approach"]["scale"] * np.exp(-distance_ee_to_cube / rc["approach"]["distance"])
@@ -383,13 +436,22 @@ class PandaPickEnv(gym.Env):
         lift_height = cube_height - rc["lift"]["reference_height"]
         lift_reward = float(rc["lift"]["scale"] * np.clip(lift_height / rc["lift"]["height"], 0.0, 1.0))
 
-        transport_reward = float(
-            rc["transport"]["scale"] * np.exp(-distance_cube_to_tray / rc["transport"]["distance"])
-        )
+        transport_reward = 0.0
+        if self._cube_lifted and distance_ee_to_cube < rc["transport"]["ee_max_distance"]:
+            transport_reward = float(
+                rc["transport"]["scale"] * np.exp(-distance_cube_to_tray / rc["transport"]["distance"])
+            )
 
         terminated = False
         success = False
-        if distance_cube_to_tray < self.success_threshold and cube_height > rc["success"]["min_height"]:
+        success_min_height = rc["success"]["min_height"]
+        success_require_lifted = rc["success"].get("require_lifted", False)
+        success_condition = (
+            distance_cube_to_tray < self.success_threshold
+            and cube_height > success_min_height
+            and (not success_require_lifted or self._cube_lifted)
+        )
+        if success_condition:
             self._success_hold += 1
             if self._success_hold >= self.success_hold_steps:
                 success = True
@@ -405,6 +467,19 @@ class PandaPickEnv(gym.Env):
 
         action_reward = float(rc["action"]["penalty"] * np.sum(action ** 2))
 
+        push_reward = 0.0
+        if cube_height < rc["lift"]["min_lifted_height"] and distance_ee_to_cube < rc["push"]["distance"]:
+            if cube_horizontal_displacement > rc["push"]["min_displacement"]:
+                push_reward = float(rc["push"]["penalty"] * cube_horizontal_displacement)
+
+        open_gripper_reward = 0.0
+        if (
+            cube_height < rc["lift"]["min_lifted_height"]
+            and distance_ee_to_cube < rc["open_gripper"]["distance"]
+            and gripper_command > 0.0
+        ):
+            open_gripper_reward = float(rc["open_gripper"]["penalty"])
+
         reward = (
             time_reward
             + approach_reward
@@ -414,7 +489,11 @@ class PandaPickEnv(gym.Env):
             + success_reward
             + drop_reward
             + action_reward
+            + push_reward
+            + open_gripper_reward
         )
+
+        self._prev_cube_position = cube_pos[:2].copy()
 
         truncated = self._steps >= self.max_episode_steps
 
@@ -423,6 +502,7 @@ class PandaPickEnv(gym.Env):
             "distance_ee_to_cube": distance_ee_to_cube,
             "distance_cube_to_tray": distance_cube_to_tray,
             "cube_height": cube_height,
+            "cube_lifted": self._cube_lifted,
             "detected": detection["detected"],
             "confidence": detection["confidence"],
             "steps": self._steps,
@@ -439,6 +519,8 @@ class PandaPickEnv(gym.Env):
                 "success": success_reward,
                 "drop": drop_reward,
                 "action": action_reward,
+                "push": push_reward,
+                "open_gripper": open_gripper_reward,
             }
         return obs, reward, terminated, truncated, info
 
