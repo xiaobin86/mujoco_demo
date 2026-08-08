@@ -185,22 +185,42 @@ python scripts/replay_teleop.py \
 
 ### 2.3 训练 ACT 策略（阶段一）
 
+如果你的数据量不大（比如几十到一百条 episode），建议先**离线把数据增强 3–5 倍**，这样训练时图像可以直接常驻 GPU，速度最快：
+
+```bash
+python scripts/augment_demos.py \
+  --input data/teleop_demos_20260808_*.npz \
+  --copies 5 \
+  --output data/teleop_demos_aug.npz
+```
+
+- 默认随机裁剪 ±4 像素 + 亮度/对比度抖动。
+- 增强后的文件结构和原 `.npz` 一致，可以直接和原数据一起作为 `--input`。
+
+然后训练（不加 `--augment`，数据已经增强了）：
+
 ```bash
 python scripts/train_act.py \
-  --input data/teleop_demos_*.npz \
+  --input data/teleop_demos_*.npz data/teleop_demos_aug.npz \
   --output checkpoints/act_so101.pt \
   --epochs 500 \
   --batch-size 64 \
   --lr 1e-4 \
-  --weight-decay 1e-4 \
+  --weight-decay 1e-3 \
   --chunk-size 8 \
-  --hidden-dim 128 \
+  --hidden-dim 64 \
+  --freeze-backbone \
+  --patience 50 \
   --device cuda
 ```
 
-- `--input` 可传多个文件合并训练，也可省略让它自动选最新的 `data/*.npz`。
+- 输入支持多个文件，原始数据 + 增强数据一起训练。
+- `--freeze-backbone` 冻结 ResNet-18 backbone，只训练 Transformer 和输出头，适合小数据集。
+- `--patience 50` 表示 val loss 连续 50 epoch 不下降就早停。
 - 默认启用 `torch.compile` + `bfloat16 AMP`，在 CUDA 上训练最快；若出错可加 `--no-compile` 或 `--no-amp` 排查。
-- 每 10 epoch 打印 train/val loss，验证 loss 最低时自动保存 `checkpoints/act_so101.pt`。
+- 每 10 epoch 打印 train/val loss，验证 loss 最低时自动保存 checkpoint。
+
+> 如果你不想提前离线增强，也可以加 `--augment` 让 `train_act.py` 每 batch 在线增强，但图像会暂存 CPU，训练速度明显慢。推荐优先用离线方式。
 
 ### 2.4 用 ACT rollout 生成更多仿真数据
 
@@ -286,10 +306,24 @@ python scripts/teleop_record.py \
   --episodes 30 \
   --image-size 128
 
-# 3. 训练 ACT（默认 batch-size 64, chunk-size 8, hidden-dim 128, epochs 200）
+# 3. 离线增强训练数据（原始 100 条 episode 建议增强 5 倍）
+python scripts/augment_demos.py \
+  --input data/teleop_demos_*.npz \
+  --copies 5 \
+  --output data/teleop_demos_aug.npz
+
+# 4. 训练 ACT（不加 --augment，图像常驻 GPU）
 python scripts/train_act.py \
+  --input data/teleop_demos_*.npz data/teleop_demos_aug.npz \
   --output checkpoints/act_so101.pt \
   --epochs 500 \
+  --batch-size 64 \
+  --lr 1e-4 \
+  --weight-decay 1e-3 \
+  --chunk-size 8 \
+  --hidden-dim 64 \
+  --freeze-backbone \
+  --patience 50 \
   --device cuda
 
 # 4. 用 ACT 在仿真中生成更多数据（默认双相机，chunk_size 自动推断）
@@ -323,9 +357,9 @@ python examples/evaluate_ppo.py \
 ```
 
 > **关键提醒**：
+> - 数据量不大时，强烈建议先用 `scripts/augment_demos.py` 做离线增强，训练时不加 `--augment`，这样图像常驻 GPU，速度最快。
 > - `act_rollout.py` 默认使用双相机输入，与 `teleop_record.py` / `train_act.py` 一致；如需单相机，请加 `--single-camera`。
 > - `act_rollout.py` 会自动从 checkpoint 推断 `--chunk-size`，一般无需手动指定。
-> - `train_ppo.py` 的 `--device` 仍默认 `auto`；`act_rollout.py` 已改为默认 `cuda`。
 > - 若显存不足，可在 `train_act.py` 加 `--batch-size 32` 或 `--no-amp`。
 > - 若训练时提示 PyTorch 不支持 sm_120，请按前置条件切换到 `cu128` 版本。
 
