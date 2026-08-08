@@ -19,6 +19,74 @@ except ImportError:
     SummaryWriter = None
 
 
+class RandomAugment:
+    """Lightweight batched image augmentation for ACT training.
+
+    Operates on (B, H, W, C) uint8 tensors with random crop, brightness and
+    contrast jitter. The random crop uses reflect padding to avoid changing
+    the image mean, which is important because the downstream ResNet-18
+    encoder expects ImageNet normalized inputs.
+    """
+
+    def __init__(
+        self,
+        pad: int = 4,
+        brightness: float = 0.2,
+        contrast: float = 0.2,
+    ) -> None:
+        self.pad = pad
+        self.brightness = brightness
+        self.contrast = contrast
+
+    def __call__(self, x: torch.Tensor) -> torch.Tensor:
+        x = x.float() / 255.0
+        if self.brightness > 0.0:
+            x = self._brightness(x)
+        if self.contrast > 0.0:
+            x = self._contrast(x)
+        if self.pad > 0:
+            x = self._random_crop(x)
+        return (x * 255.0).clamp_(0.0, 255.0).to(torch.uint8)
+
+    def _brightness(self, x: torch.Tensor) -> torch.Tensor:
+        delta = torch.empty(x.size(0), 1, 1, 1).uniform_(-self.brightness, self.brightness)
+        return torch.clamp(x + delta, 0.0, 1.0)
+
+    def _contrast(self, x: torch.Tensor) -> torch.Tensor:
+        factor = torch.empty(x.size(0), 1, 1, 1).uniform_(1 - self.contrast, 1 + self.contrast)
+        mean = x.mean(dim=(1, 2, 3), keepdim=True)
+        return torch.clamp((x - mean) * factor + mean, 0.0, 1.0)
+
+    def _random_crop(self, x: torch.Tensor) -> torch.Tensor:
+        B, H, W, C = x.shape
+        x = x.permute(0, 3, 1, 2)
+        x = torch.nn.functional.pad(x, (self.pad, self.pad, self.pad, self.pad), mode="reflect")
+        top = torch.randint(0, 2 * self.pad + 1, (B,))
+        left = torch.randint(0, 2 * self.pad + 1, (B,))
+        crops = torch.stack([x[i, :, top[i] : top[i] + H, left[i] : left[i] + W] for i in range(B)])
+        return crops.permute(0, 2, 3, 1)
+
+
+class EarlyStopping:
+    """Stop training when validation loss has not improved for a patience window."""
+
+    def __init__(self, patience: int, min_delta: float = 0.0) -> None:
+        self.patience = patience
+        self.min_delta = min_delta
+        self.counter = 0
+        self.best_loss = float("inf")
+
+    def __call__(self, val_loss: float) -> bool:
+        if val_loss < self.best_loss - self.min_delta:
+            self.best_loss = val_loss
+            self.counter = 0
+        else:
+            self.counter += 1
+            if self.counter >= self.patience:
+                return True
+        return False
+
+
 class TeleopDataset:
     """Demo dataset resident on the training device.
 
@@ -27,7 +95,9 @@ class TeleopDataset:
     CPU->GPU transfer overhead.
     """
 
-    def __init__(self, npz_paths: Sequence[str | Path], chunk_size: int, device: torch.device) -> None:
+    def __init__(
+        self, npz_paths: Sequence[str | Path], chunk_size: int, device: torch.device, augment: bool = False
+    ) -> None:
         proprios, actions, ep_starts_parts = [], [], []
         image_arrays: dict[str, list[np.ndarray]] = {}
         for path in npz_paths:
@@ -59,10 +129,14 @@ class TeleopDataset:
         if n <= 0:
             raise ValueError(f"Not enough frames ({n_frames}) for chunk_size={chunk_size}")
 
-        # Images stay uint8 (quarter of float32 VRAM); the encoder casts them.
+        # Images stay uint8 to save memory. When augmentation is enabled, they
+        # are kept on CPU so transforms can be applied per batch; otherwise they
+        # are uploaded to the target device once at construction.
         self.image_tensors = [
-            torch.from_numpy(np.concatenate(arrs, axis=0)).to(device)[:n] for arrs in image_arrays.values()
+            torch.from_numpy(np.concatenate(arrs, axis=0))[:n] for arrs in image_arrays.values()
         ]
+        if not augment:
+            self.image_tensors = [t.to(device) for t in self.image_tensors]
         prop = torch.from_numpy(np.concatenate(proprios, axis=0)).float().to(device)
         act = torch.from_numpy(np.concatenate(actions, axis=0)).float().to(device)
 
@@ -70,6 +144,9 @@ class TeleopDataset:
         self.action_chunks = act.unfold(0, chunk_size, 1)[:n].transpose(1, 2).contiguous()
         self.proprio_dim = int(prop.shape[1])
         self.action_dim = int(act.shape[1])
+        self.device = device
+        self.augment = augment
+        self.transform = RandomAugment() if augment else None
 
         # Restrict sampling so action chunks never cross episode boundaries
         # (same idea as LeRobot's EpisodeAwareSampler / action_is_pad masking).
@@ -93,7 +170,11 @@ class TeleopDataset:
         return len(self.image_tensors[0])
 
     def gather(self, idx: torch.Tensor) -> tuple[list[torch.Tensor], torch.Tensor, torch.Tensor]:
-        return [img[idx] for img in self.image_tensors], self.proprios[idx], self.action_chunks[idx]
+        images = [img[idx] for img in self.image_tensors]
+        if self.transform is not None:
+            images = [self.transform(img) for img in images]
+            images = [img.to(self.device) for img in images]
+        return images, self.proprios[idx], self.action_chunks[idx]
 
 
 def train_epoch(
@@ -184,6 +265,10 @@ def main() -> None:
     parser.add_argument("--val-split", type=float, default=0.1, help="Validation split ratio (episode-level)")
     parser.add_argument("--seed", type=int, default=None, help="Random seed for train/val split and torch")
     parser.add_argument("--device", type=str, default="auto", choices=["auto", "cpu", "cuda"])
+    parser.add_argument("--augment", action="store_true", help="Enable random crop/brightness/contrast augmentation")
+    parser.add_argument("--patience", type=int, default=50, help="Early stopping patience; 0 disables early stopping")
+    parser.add_argument("--freeze-backbone", action="store_true", help="Freeze ResNet-18 backbone, only train transformer and policy head")
+    parser.add_argument("--no-pretrained", action="store_true", help="Do not load ImageNet pretrained weights for ResNet-18")
     parser.add_argument(
         "--tensorboard-log",
         type=str,
@@ -222,7 +307,7 @@ def main() -> None:
     if args.seed is not None:
         torch.manual_seed(args.seed)
 
-    dataset = TeleopDataset(args.inputs, chunk_size=args.chunk_size, device=device)
+    dataset = TeleopDataset(args.inputs, chunk_size=args.chunk_size, device=device, augment=args.augment)
     print(
         f"Dataset on {device.type}: {dataset.valid_idx.numel()}/{len(dataset)} boundary-safe samples, "
         f"{len(dataset.image_tensors)} camera(s), images {tuple(dataset.image_tensors[0].shape)} uint8, "
@@ -252,7 +337,15 @@ def main() -> None:
         action_dim=dataset.action_dim,
         chunk_size=args.chunk_size,
         hidden_dim=args.hidden_dim,
+        encoder_pretrained=not args.no_pretrained,
     ).to(device)
+
+    if args.freeze_backbone:
+        for param in model.image_encoder.features.parameters():
+            param.requires_grad = False
+        trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        total = sum(p.numel() for p in model.parameters())
+        print(f"Frozen ResNet-18 backbone: {trainable}/{total} parameters trainable")
 
     if args.resume:
         model.load_state_dict(torch.load(args.resume, map_location=device))
@@ -282,6 +375,8 @@ def main() -> None:
 
     use_amp = device.type == "cuda" and not args.no_amp
 
+    early_stopping = EarlyStopping(patience=args.patience) if args.patience > 0 else None
+
     t_start = time.time()
     for epoch in range(1, args.epochs + 1):
         train_loss = train_epoch(model, dataset, train_idx, args.batch_size, optimizer, device, use_amp)
@@ -297,6 +392,9 @@ def main() -> None:
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             torch.save(raw_model.state_dict(), args.output)
+        if early_stopping is not None and early_stopping(val_loss):
+            print(f"Early stopping triggered at epoch {epoch} (best val_loss={best_val_loss:.6f})")
+            break
 
     print(f"Best val loss: {best_val_loss:.6f}, checkpoint saved to {args.output}")
     if writer is not None:
