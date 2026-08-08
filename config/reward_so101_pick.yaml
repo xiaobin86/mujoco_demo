@@ -1,0 +1,56 @@
+version: "1.0"
+
+description: >
+  Tuned reward configuration for SO101PickEnv. The SO101 arm has a smaller
+  workspace than the Panda, so approach/transport distance scales are tightened
+  and the success bonus is large enough to dominate the episode return.
+
+rewards:
+  time_penalty: -0.05
+
+  approach:
+    scale: 1.0
+    distance: 0.08
+
+  grasp:
+    bonus: 1.0
+    distance: 0.04
+
+  lift:
+    scale: 2.0
+    height: 0.08
+    reference_height: 0.015
+    min_lifted_height: 0.08
+
+  transport:
+    scale: 1.0
+    distance: 0.08
+    ee_max_distance: 0.2
+
+  success:
+    bonus: 2000.0
+    threshold: 0.05
+    hold_steps: 20
+    min_height: 0.08
+    require_lifted: true
+
+  drop:
+    penalty: -100.0
+    height: -0.05
+
+  action:
+    penalty: -0.0001
+
+  push:
+    penalty: -10.0
+    distance: 0.06
+    min_displacement: 0.001
+
+  open_gripper:
+    penalty: -0.5
+    distance: 0.04
+
+logging:
+  log_reward_components: true
+  log_success_rate: true
+  success_rate_window: 100

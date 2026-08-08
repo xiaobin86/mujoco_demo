@@ -24,6 +24,7 @@ wheels/
 MUJOCO_LOG.TXT
 logs/
 checkpoints/
+data/
 *.png
 
 # OpenCode / agent runtime
