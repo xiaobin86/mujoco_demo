@@ -31,23 +31,23 @@ from gymnasium.wrappers import RecordEpisodeStatistics
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv
 
-from jaka_zu35_mujoco_rl import PandaPickEnv
+from jaka_zu35_mujoco_rl.envs import make_env
 
 
-def make_env() -> PandaPickEnv:
-    """Factory for the vectorized environment."""
-    env = PandaPickEnv()
+def make_vec_env(robot: str):
+    env = make_env(robot=robot)
     env = RecordEpisodeStatistics(env)
     return env
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Evaluate a trained PPO model on PandaPickEnv")
+    parser = argparse.ArgumentParser(description="Evaluate a trained PPO model on PandaPickEnv or SO101PickEnv")
+    parser.add_argument("--robot", type=str, default="panda", choices=["panda", "so101"], help="Robot to evaluate")
     parser.add_argument(
         "--model",
         type=str,
-        default="checkpoints/ppo_panda_final.zip",
-        help="Path to the trained PPO model",
+        default=None,
+        help="Path to the trained PPO model (default: checkpoints/ppo_<robot>_final.zip)",
     )
     parser.add_argument("--episodes", type=int, default=5, help="Number of episodes to evaluate")
     parser.add_argument(
@@ -58,10 +58,13 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    env = DummyVecEnv([make_env])
-    model = PPO.load(args.model, env=env, device="cpu")
+    robot = args.robot
+    model_path = Path(args.model) if args.model else Path(f"checkpoints/ppo_{robot}_final.zip")
 
-    print(f"Loading model from {args.model}")
+    env = DummyVecEnv([lambda: make_vec_env(robot=robot)])
+    model = PPO.load(str(model_path), env=env, device="cpu")
+
+    print(f"Loading model from {model_path}")
     print("Opening MuJoCo viewer... Close the window to stop evaluation.")
 
     with mujoco.viewer.launch_passive(env.envs[0].unwrapped.model, env.envs[0].unwrapped.data) as viewer:
