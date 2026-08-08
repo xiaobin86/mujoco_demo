@@ -170,10 +170,12 @@ class TeleopDataset:
         return len(self.image_tensors[0])
 
     def gather(self, idx: torch.Tensor) -> tuple[list[torch.Tensor], torch.Tensor, torch.Tensor]:
-        images = [img[idx] for img in self.image_tensors]
-        if self.transform is not None:
-            images = [self.transform(img) for img in images]
-            images = [img.to(self.device) for img in images]
+        if self.augment:
+            idx_cpu = idx.cpu()
+            images = [img[idx_cpu] for img in self.image_tensors]
+            images = [self.transform(img).to(self.device) for img in images]
+        else:
+            images = [img[idx] for img in self.image_tensors]
         return images, self.proprios[idx], self.action_chunks[idx]
 
 
