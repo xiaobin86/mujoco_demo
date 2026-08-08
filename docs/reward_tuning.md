@@ -293,7 +293,32 @@ reward = gamma * phi_next - phi
 
 ---
 
-## 9. 命令速查
+## 9. 续训
+
+如果训练中断或想继续训练，使用 `--resume` 参数：
+
+```bash
+python examples/train_ppo.py \
+  --total-timesteps 500000 \
+  --no-viewer --device cuda \
+  --reward-config config/reward_my_v1.yaml \
+  --resume checkpoints/ppo_panda_final.zip
+```
+
+关键行为：
+- 从 `checkpoints/ppo_panda_final.zip` 加载模型和优化器状态
+- TensorBoard 的 `total_timesteps` 会继续累加（不会从 0 开始）
+- 会生成新的 `logs/PPO_X` 目录，可以在 TensorBoard 里对比续训前后的曲线
+
+如果 checkpoint 不存在会报错：
+
+```text
+FileNotFoundError: Resume checkpoint not found: checkpoints/ppo_panda_final.zip
+```
+
+---
+
+## 10. 命令速查
 
 ```bash
 # 默认配置训练
