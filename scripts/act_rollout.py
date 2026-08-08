@@ -60,6 +60,7 @@ def main() -> None:
     parser.add_argument("--episodes", type=int, default=50, help="Number of rollout episodes")
     parser.add_argument("--max-steps", type=int, default=300, help="Max steps per episode")
     parser.add_argument("--chunk-size", type=int, default=8, help="Action chunk size used by ACT")
+    parser.add_argument("--hidden-dim", type=int, default=128, help="Transformer hidden dim used by ACT")
     parser.add_argument(
         "--single-camera",
         action="store_true",
@@ -83,18 +84,28 @@ def main() -> None:
     if not model_path.exists():
         raise FileNotFoundError(f"Model checkpoint not found: {model_path}")
 
-    # Auto-detect chunk_size from the checkpoint to avoid action_queries.weight
-    # shape mismatches. The saved action_queries.weight has shape [chunk_size, hidden_dim].
+    # Auto-detect hyperparameters from the checkpoint so the rollout script does
+    # not need to be invoked with the exact same training flags.
     checkpoint = torch.load(model_path, map_location="cpu")
     if "action_queries.weight" not in checkpoint:
-        raise RuntimeError("Checkpoint is missing action_queries.weight; cannot infer chunk_size")
+        raise RuntimeError("Checkpoint is missing action_queries.weight; cannot infer hyperparameters")
     detected_chunk_size = int(checkpoint["action_queries.weight"].shape[0])
+    detected_hidden_dim = int(checkpoint["action_queries.weight"].shape[1])
+    n_encoder_layers = len({k.split(".")[2] for k in checkpoint if k.startswith("encoder.layers.")})
+    n_decoder_layers = len({k.split(".")[2] for k in checkpoint if k.startswith("decoder.layers.")})
+
     if detected_chunk_size != args.chunk_size:
         print(
             f"Warning: --chunk-size {args.chunk_size} does not match checkpoint chunk_size "
             f"{detected_chunk_size}; using checkpoint value."
         )
         args.chunk_size = detected_chunk_size
+    if detected_hidden_dim != args.hidden_dim:
+        print(
+            f"Warning: --hidden-dim {args.hidden_dim} does not match checkpoint hidden_dim "
+            f"{detected_hidden_dim}; using checkpoint value."
+        )
+        args.hidden_dim = detected_hidden_dim
 
     env = make_env(robot="so101", render_mode="rgb_array")
     obs, _ = env.reset()
@@ -106,10 +117,17 @@ def main() -> None:
         proprio_dim=proprio_dim,
         action_dim=action_dim,
         chunk_size=args.chunk_size,
+        hidden_dim=args.hidden_dim,
+        n_encoder_layers=max(1, n_encoder_layers),
+        n_decoder_layers=max(1, n_decoder_layers),
     ).to(device)
     policy.load_state_dict(checkpoint)
     policy.eval()
-    print(f"Loaded ACT checkpoint from {model_path} (chunk_size={args.chunk_size}, device={device})")
+    print(
+        f"Loaded ACT checkpoint from {model_path} "
+        f"(chunk_size={args.chunk_size}, hidden_dim={args.hidden_dim}, "
+        f"n_encoder_layers={n_encoder_layers}, n_decoder_layers={n_decoder_layers}, device={device})"
+    )
 
     ensembler = (
         TemporalEnsembler(args.temporal_ensemble_coeff, args.chunk_size)
