@@ -310,9 +310,10 @@ def main() -> None:
         torch.manual_seed(args.seed)
 
     dataset = TeleopDataset(args.inputs, chunk_size=args.chunk_size, device=device, augment=args.augment)
+    image_location = "CPU (augmentation enabled)" if args.augment else device.type
     print(
-        f"Dataset on {device.type}: {dataset.valid_idx.numel()}/{len(dataset)} boundary-safe samples, "
-        f"{len(dataset.image_tensors)} camera(s), images {tuple(dataset.image_tensors[0].shape)} uint8, "
+        f"Dataset: {dataset.valid_idx.numel()}/{len(dataset)} boundary-safe samples, "
+        f"{len(dataset.image_tensors)} camera(s), images {tuple(dataset.image_tensors[0].shape)} uint8 on {image_location}, "
         f"action chunks {tuple(dataset.action_chunks.shape)}"
     )
 
