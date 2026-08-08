@@ -1,0 +1,14 @@
+<mujocoinclude>
+  <asset>
+    <material name="cube_red" rgba="0.9 0.1 0.1 1"/>
+  </asset>
+
+  <worldbody>
+    <!-- 3 cm red cube. Default position is on the SO101 table surface. -->
+    <body name="cube" pos="0.23 0 0.035">
+      <freejoint name="cube_joint"/>
+      <inertial pos="0 0 0" mass="0.04" diaginertia="6e-06 6e-06 6e-06"/>
+      <geom name="cube_geom" type="box" size="0.015 0.015 0.015" material="cube_red" friction="0.8 0.1 0.01" solimp="0.95 0.99 0.001" solref="0.002 1" priority="1" conaffinity="3"/>
+    </body>
+  </worldbody>
+</mujocoinclude>

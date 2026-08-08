@@ -1,0 +1,18 @@
+<mujocoinclude>
+  <asset>
+    <material name="tray_blue" rgba="0.1 0.4 0.9 1"/>
+  </asset>
+
+  <worldbody>
+    <!-- Target tray / platform placed on the SO101 table surface. -->
+    <body name="tray" pos="0.28 0.18 0.025">
+      <!-- Tray floor: 20 cm x 20 cm, 1 cm thick. -->
+      <geom name="tray_floor" type="box" size="0.1 0.1 0.005" pos="0 0 0" material="tray_blue" friction="0.8 0.02 0.01" conaffinity="3"/>
+      <!-- Tray walls to keep the cube inside. -->
+      <geom name="tray_wall_n" type="box" size="0.1 0.005 0.02" pos="0 0.105 0.02" material="tray_blue" group="2" conaffinity="3"/>
+      <geom name="tray_wall_s" type="box" size="0.1 0.005 0.02" pos="0 -0.105 0.02" material="tray_blue" group="2" conaffinity="3"/>
+      <geom name="tray_wall_e" type="box" size="0.005 0.1 0.02" pos="0.105 0 0.02" material="tray_blue" group="2" conaffinity="3"/>
+      <geom name="tray_wall_w" type="box" size="0.005 0.1 0.02" pos="-0.105 0 0.02" material="tray_blue" group="2" conaffinity="3"/>
+    </body>
+  </worldbody>
+</mujocoinclude>

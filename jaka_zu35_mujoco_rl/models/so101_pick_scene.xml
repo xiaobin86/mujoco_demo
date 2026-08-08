@@ -1,0 +1,21 @@
+<mujoco model="so101_pick">
+  <!-- MuJoCo needs meshdir relative to this scene file because SO101 is included
+       from a subdirectory. The included model uses implicitfast integration. -->
+  <compiler angle="radian" meshdir="so101/assets" autolimits="true"/>
+
+  <!-- LeRobot SO101 arm + gripper (from mujoco_menagerie). -->
+  <include file="so101/so101.xml"/>
+
+  <!-- Ground plane, lights, table, cube, and target tray. -->
+  <include file="ground.xml"/>
+  <include file="so101_table.xml"/>
+  <include file="so101_cube.xml"/>
+  <include file="so101_tray.xml"/>
+
+  <!-- Scene framing for the interactive viewer. -->
+  <statistic center="0.25 0 0.2" extent="0.6"/>
+
+  <visual>
+    <headlight diffuse="0.6 0.6 0.6" ambient="0.3 0.3 0.3" specular="0.2 0.2 0.2"/>
+  </visual>
+</mujoco>
